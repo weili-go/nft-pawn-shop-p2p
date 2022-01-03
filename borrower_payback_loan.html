@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="./dependencies/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Borrower payback loan</title>
+</head>
+<body>
+  <h1>融資者はローンの返済を実行する.</h1>
+  <h2>融資ローンの情報</h2>
+  <div id="web3-warning" class="hidden warning">
+    Make sure the example app is being served with an HTTP server. <br />
+    Please install MetaMask: <a href="https://metamask.io/">https://metamask.io/</a>
+  </div>
+  <div class="card">
+    <label>今のアカウント: </label>&nbsp;<span id="my-address"></span>
+    <br />
+    <br />
+    <label>ローンID: </label>&nbsp;<input id="l-i" type="text" value="0" />
+    <br />
+    <br />
+    <input id="get-loan" type="submit" value="ローンの情報を取得する" />
+    <br />
+    <br />
+    <label>融資者アドレス: </label>&nbsp;<span id="loan-b-a"></span>
+    <br />
+    <br />
+    <label>融資のERC20コントラクトアドレス: </label>&nbsp;<span id="loan-e-d"></span>
+    <br />
+    <br />
+    <label>融資金額: </label>&nbsp;<span id="my-loan-o-m"></span>
+    <br />
+    <br />
+    <label>最大返済金額: </label>&nbsp;<span id="my-loan-r-a"></span>
+    <br />
+    <br />
+    <label>融資するNFTの担保品のアドレス: </label>&nbsp;<span id="nft-address"></span>
+    <br />
+    <br />
+    <label>融資するNFTのトークンID: </label>&nbsp;<span id="nft-id"></span>
+    <br />
+    <br />
+    <label>ローン開始時間: </label>&nbsp;<span id="loan-s-t"></span>
+    <br />
+    <br />
+    <label>ローンの期間（秒）: </label>&nbsp;<span id="loan-d"></span>
+    <br />
+    <br />
+    <label>利息率: </label>&nbsp;<span id="loan-l-r-d-p"></span>
+    <br />
+    <br />
+    <label>質屋の手数料（利息の割引）: </label>&nbsp;<span id="loan-a-p"></span>
+    <br />
+    <br />
+    <label>最大返済額での返済必須か: </label>&nbsp;<span id="loan-i-i"></span>
+    <br />
+    <br />
+    <input id="payback-early" type="submit" value="利息収益" />
+    <label>融資者の返済の金額: </label>&nbsp;<span id="my-early"></span>
+    <br />
+    <br />
+    <label>トータル利息収益: </label>&nbsp;<span id="t-fee"></span>
+    <br />
+    <br />
+    <label>出資者への元金分: </label>&nbsp;<span id="b-m"></span>
+    <br />
+    <br />
+    <label>出資者への利息分: </label>&nbsp;<span id="b-fee"></span>
+    <br />
+    <br />
+    <label>質屋への利息分: </label>&nbsp;<span id="p-fee"></span>
+    <br />
+    <br />
+  </div>
+  <h2>返済するため、NFT Pawn Shop(NFT質屋)にERC20トークンの移転の権利を許可する</h2>
+  <div class="card">
+    <label>返済するERC20コントラクトアドレス: </label>&nbsp;<input id="erc20-address" disabled=true type="text" value="0xbbb6df9b9e5e8f38831981d4b9c784406c7cfd31" />
+    <br />
+    <br />
+    <input id="get-erc" type="submit" value="残高を取得する" />
+    <label>今のアカウントのERC20トークンの残高: </label>&nbsp;<span id="my-erc-amount"></span>
+    <br />
+    <br />
+    <label>移転許可の金額: </label>&nbsp;<input id="erc-amount" type="text" value="10000" />
+    <br />
+    <br />
+    <label>移転許可先のアドレス: </label>&nbsp;<input id="erc20-to-address" disabled=true type="text" value="0xdaa1273c61a4e952b00be0d61b00a79a9d67c789" />
+    <br />
+    <br />
+    <input id="approve-erc20" type="submit" value="移転を許可する" />
+  </div>
+  <h2>ローンの返済を実行する</h2>
+  <div class="card">
+    <input id="get-liquidate-nft" type="submit" value="返済情報" />
+    <br />
+    <label>返済情報: </label>&nbsp;<span id="li-i"></span>
+    <br />
+    <br />
+    <br />
+    <br />
+    <input id="pay-back-loan" type="submit" value="返済する" />
+  </div>
+</body>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.4.0/dist/web3.min.js"></script>
+<script type="text/javascript" src="./dependencies/gyen-abi.js"></script>
+<script type="text/javascript" src="./dependencies/nftps-abi.js"></script>
+<script type="text/javascript" src="./dependencies/adam-abi.js"></script>
+<script type="text/javascript">
+
+  function strip0x(v){
+    return v.replace(/^0x/, "");
+  }
+
+  function prepend0x(v) {
+    return v.replace(/^(0x)?/, "0x");
+  }
+  
+  function bytes32FromNum(data,web3) {
+    const re = prepend0x(strip0x(web3.utils.numberToHex(data)).toLowerCase().padStart(64, "0"));
+    //console.log(re);
+    return re;
+  }
+
+  function bytes32FromHex1(data) {
+    const re = prepend0x(strip0x(data).toLowerCase().padStart(64, "0"));
+    return re;
+  }
+
+  function bytes32FromHex(data,web3) {
+    let re;
+    console.log(data);
+    data.substring(0, 2) == "0x" ? re = prepend0x(strip0x(data).toLowerCase().padStart(64, "0")) :
+    re = bytes32FromNum(data,web3);
+
+    console.log(re);
+    return re;
+  }
+
+  const createBorrowBySigMessage = (_nftCollateralId, _borrowerNonce, _nftCollateralContract, _borrower, _chainId, web3) => {
+    return `${web3.utils.keccak256(`0x${[
+      bytes32FromHex(_nftCollateralId, web3),
+      bytes32FromHex(_borrowerNonce, web3),
+      _nftCollateralContract,
+      _borrower,
+      bytes32FromNum(_chainId)
+    ].map(x => x.replace(/0x/, '')).join('')}`)}`;
+  };
+
+  window.addEventListener('load', (event) => {
+    let web3;
+    const web3Warning = document.getElementById('web3-warning');
+    const myAddress = document.getElementById('my-address');
+    const pFee = document.getElementById('p-fee');
+    const tFee = document.getElementById('t-fee');
+    const bFee = document.getElementById('b-fee');
+    const myEarly = document.getElementById('my-early');
+    const chainId = document.getElementById('chainId');
+
+    const erc20address = document.getElementById('erc20-address');
+    const ercamount = document.getElementById('erc-amount');
+    const erc20toaddress = document.getElementById('erc20-to-address');
+    const approveerc20 = document.getElementById('approve-erc20');
+    const getloan = document.getElementById('get-loan');
+    const loanid = document.getElementById('l-i');
+    const payback = document.getElementById('pay-back-loan');
+    const myerc20amount = document.getElementById('my-erc-amount');
+    const geterc20 = document.getElementById('get-erc');
+
+    const myLoanom = document.getElementById('my-loan-o-m');
+    const myLoanpm = document.getElementById('my-loan-r-a');
+    const nfta = document.getElementById('nft-address');
+    const nftid = document.getElementById('nft-id');
+    const loanst = document.getElementById('loan-s-t');
+    const loand = document.getElementById('loan-d');
+    const loanInterest = document.getElementById('loan-l-r-d-p');
+    const adminfeep = document.getElementById('loan-a-p');
+    const loanerc20a = document.getElementById('loan-e-d');
+    const loanborrower = document.getElementById('loan-b-a');
+    const isProRated = document.getElementById('loan-i-i');
+
+    const paybackearly = document.getElementById('payback-early');
+    const li = document.getElementById('li-i');
+    const bm = document.getElementById('b-m');
+    const getliquidate = document.getElementById('get-liquidate-nft');
+
+    if (typeof window.ethereum === 'undefined') {
+      console.error('Client does not have an active Web3 provider or the example app is not being run from an HTTP server.');
+      console.log('Go here to install MetaMask: https://metamask.io/');
+      alert(
+        'You need a Web3 provider to run this page. ' + 
+        'Go here to install MetaMask:\n\n' +
+        'https://metamask.io/'
+      );
+      web3Warning.classList.remove('hidden');
+    } else {
+      main();
+    }
+
+    async function main() {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); // enable ethereum
+      web3 = new Web3(window.ethereum);
+      const net = +window.ethereum.chainId;
+
+      // This app only works with rinkeby
+      if (net !== 4) {
+        alert('Please select the Rinkeby network.');
+      }
+
+      //gyen
+      //const gyenAddress = "0xbbb6df9b9e5e8f38831981d4b9c784406c7cfd31";
+      const gyenAbi = window.gyenAbi;
+      //const gyen = new web3.eth.Contract(gyenAbi, gyenAddress);
+      const myAccount = accounts[0];
+      myAddress.innerText = myAccount;
+      //signinfo.innerText = "sign(hash(NFT-tokenId, borrowerNonce, NFT-contractAddress, Loan-borrower, chainId))";
+
+      //nftps
+      //nftps
+      const nftpsAddress = "0xdaa1273c61a4e952b00be0d61b00a79a9d67c789";
+      //const nftpsAddress = "0x34b971f99b18fc2544847e3f61f376f632662434";
+      const nftpsAbi = window.nftpsAbi;
+      const nftps = new web3.eth.Contract(nftpsAbi, nftpsAddress);
+      //const _loanInterestRateForDurationInBasisPoints = 0x0;
+      const _adminFeeInBasisPoints = await nftps.methods.adminFeeInBasisPoints().call();
+      console.log(`adminFeeInBasisPoints is ${_adminFeeInBasisPoints}`);
+
+      //adam
+      //const adamAddress = "0x32046b81bb628a626b6543b3c532f5e7fa8a5446";
+      //const adamAbi = window.adamAbi;
+      //const adam = new web3.eth.Contract(adamAbi, adamAddress);
+
+      getliquidate.onclick = async () => {
+
+        const lid = loanid.value;
+        const loan = await nftps.methods.loanIdToLoan(lid).call();
+      
+        const due = parseInt(loan.loanStartTime) + parseInt(loan.loanDuration);
+        console.log(due);
+        const st = new Date(due * 1000);
+        const duetime = st.toLocaleString();
+
+        const now = Date.now();
+        const nowcomp = parseInt(now / 1000);
+        console.log(now);
+        console.log(nowcomp);
+        const nt = new Date(now);
+        const nowtime = nt.toLocaleString();
+
+        const str = `Now time is ${nowtime}, loan due time is ${duetime}. \n`;
+        nowcomp >= due ? 
+        li.innerText = str + "NOTE!! Please pay back the loan as soon as you can. You will lost your NFT, or you had lost it. 😞 " :
+        li.innerText = str + "You still have time until paying back loan." ;
+      };    
+
+
+      getloan.onclick = async () => {
+        const lid = loanid.value;
+
+        const loan = await nftps.methods.loanIdToLoan(lid).call();
+        
+        loanerc20a.innerText = loan.loanERC20Denomination;
+        const gyen = new web3.eth.Contract(gyenAbi, loan.loanERC20Denomination);
+        const decimals = await gyen.methods.decimals().call();
+
+        myLoanom.innerText = parseInt(loan.loanPrincipalAmount) / Math.pow(10,parseInt(decimals));
+        myLoanpm.innerText = parseInt(loan.maximumRepaymentAmount) / Math.pow(10,parseInt(decimals));
+
+        nfta.innerText = loan.nftCollateralContract;
+        nftid.innerText = web3.utils.numberToHex(loan.nftCollateralId);
+        const t = new Date(parseInt(loan.loanStartTime) * 1000);
+        loanst.innerText = t.toLocaleString();
+        loand.innerText = `${loan.loanDuration} (秒)`;
+        loanInterest.innerText = loan.interestIsProRated ? 
+          parseInt(loan.loanInterestRateForDurationInBasisPoints)/10000 : "利息率なし。最大返済額で返済する";
+        adminfeep.innerText = parseInt(loan.loanAdminFeeInBasisPoints)/10000;
+        
+        loanborrower.innerText = loan.borrower;
+        isProRated.innerText = loan.interestIsProRated ? "いいえ" : "はい";
+        erc20address.value = loan.loanERC20Denomination;
+        //console.log(`Approve sent: ${loan}`);
+
+      };
+
+      paybackearly.onclick = async () => {
+
+        const lid = loanid.value;
+        const loanamount = await nftps.methods.getPayoffAmount(lid).call();
+
+        const gyen = new web3.eth.Contract(gyenAbi, loanerc20a.innerText);
+        const decimals = await gyen.methods.decimals().call();
+        const decInt = Math.pow(10,parseInt(decimals));
+
+        myEarly.innerText = parseFloat(loanamount) / decInt;
+
+        const loan = await nftps.methods.loanIdToLoan(lid).call();
+        bm.innerText = parseInt(loan.loanPrincipalAmount) / decInt;
+        const pri = loan.loanPrincipalAmount;
+        const profit = parseFloat(loanamount) - parseFloat(pri);
+
+        const tfeetmp = (profit / decInt).toFixed(parseInt(decimals));
+        tFee.innerText = tfeetmp;
+        const bfeetmp = (parseFloat((1 - parseFloat(_adminFeeInBasisPoints)/10000) * profit / decInt)).toFixed(parseInt(decimals));
+        bFee.innerText = bfeetmp;
+
+        pFee.innerText = (tfeetmp - bfeetmp).toFixed(parseInt(decimals));
+
+      };
+      
+      geterc20.onclick = async () => {
+
+        const _loanERC20Denomination = erc20address.value.substring(0,2) == "0x" ? erc20address.value : await web3.eth.ens.getAddress(erc20address.value);
+        console.log(_loanERC20Denomination);
+        const gyen = new web3.eth.Contract(gyenAbi, _loanERC20Denomination);
+        const _myerc20amount = await gyen.methods.balanceOf(myAccount).call();
+        const decimals = await gyen.methods.decimals().call();
+        myerc20amount.innerText = parseInt(_myerc20amount) / Math.pow(10,parseInt(decimals));
+      };
+
+      approveerc20.onclick = async () => {
+
+        const _erc20toaddress = erc20toaddress.value.substring(0,2) == "0x" ? erc20toaddress.value : await web3.eth.ens.getAddress(erc20toaddress.value);
+        const _erc20address = erc20address.value.substring(0,2) == "0x" ? erc20address.value : await web3.eth.ens.getAddress(erc20address.value);
+        console.log(_erc20toaddress,_erc20address);
+        const _gyen = new web3.eth.Contract(gyenAbi, _erc20address);
+        const decimals = await _gyen.methods.decimals().call();
+
+        const _ercamount = parseFloat(ercamount.value) * Math.pow(10,parseInt(decimals));
+        
+        approveTx = await _gyen.methods.approve(_erc20toaddress,_ercamount.toString()).send({
+          from: myAccount,
+          gasLimit: web3.utils.toHex(1000000),
+          gasPrice: web3.utils.toHex(25000000000),
+        });
+
+        
+        console.log(`Approve sent: ${approveTx.transactionHash}`);
+
+      };
+
+      payback.onclick = async () => {
+
+        const lid = loanid.value;
+        
+        const tx = await nftps.methods.payBackLoan(lid).send({
+          from: myAccount,
+          // gasLimit: web3.utils.toHex(1000000),
+          // gasPrice: web3.utils.toHex(25000000000),
+        });
+
+        console.log(tx);
+
+      };    
+
+    }
+  });
+</script>
+
+</html>

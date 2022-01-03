@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="./dependencies/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Borrower borrow loan sign</title>
+</head>
+<body>
+  <h1>融資者が融資するため、自分のNFTを担保品とする必要がある</h1>
+  <h2>希望条件/Desired Terms(saved off-chain)</h2>
+  <h2>　※希望額などがある場合は最初にお伝えください。ご希望に添えない場合がある。</h2>
+  <div class="card">
+    <label>今のアカウント: </label>&nbsp;<span id="my-address"></span>
+    <br />
+    <br />
+    <label> 希望するERC20トークン: </label>&nbsp;<input id="w-e" type="text" value="gyen.eth" />
+    <br />
+    <br />
+    <label> 希望額: </label>&nbsp;<input id="l-a-w" type="text" value="10000" />
+    <br />
+    <br />
+    <label> 最大返済額 </label>&nbsp;<input id="r-a" type="text" value="11000" />
+    <br />
+    <br />
+    <label> 融資期間(秒): </label>&nbsp;<input id="l-d" type="text" value="1800" />
+    <br />
+    <br />
+  </div>
+  <h2>NFT Pawn Shop(NFT質屋)にNFTの移転の権利を許可する</h2>
+  <div id="web3-warning" class="hidden warning">
+    Make sure the example app is being served with an HTTP server. <br />
+    Please install MetaMask: <a href="https://metamask.io/">https://metamask.io/</a>
+  </div>
+  <div class="card">
+    <label>担保品のNFTのコントラクトアドレス: </label>&nbsp;<input id="nft-address" type="text" value="0x32046b81bb628a626b6543b3c532f5e7fa8a5446" />
+    <br />
+    <br />
+    <label>担保品のNFTのトークンID: </label>&nbsp;<input id="nft-tokenid" type="text" value="*** Plesea Input ***" />
+    <br />
+    <br />
+    <label>移転の許可先のアドレス: </label>&nbsp;<input id="to-address" type="text" value="0xdaa1273c61a4e952b00be0d61b00a79a9d67c789" />
+    <br />
+    <input id="approve-nft" type="submit" value="NFTの移転を許可する" />
+    <br />
+    <label>Borrower Nonce (avoid replay attack): </label>&nbsp;<input id="borrower-n" disabled=true type="text" value="" />
+    <br />
+    <label>　 ※ </label>&nbsp;<span id="nothing"></span>
+    <label>How to sign: </label>&nbsp;<span id="sign-info"></span>
+    <input id="sign" type="submit" value="融資者署名 (just for lender to give loan offer)" />
+    <br />
+    <br />
+    <label>　 ※ </label>&nbsp;<span id="nothing"></span>
+    <label>How to sign: </label>&nbsp;<span id="sign-info2"></span>
+    <input id="sign2" type="submit" value="融資者署名 (just for lender to rapid lend)" />
+    <br />
+    <br />
+    <input id="cancel-sign" type="submit" value="署名をキャンセルする" />
+  </div>
+  <h2>融資者署名/Borrower Signature(just for accept offer)</h2>
+  <div class="card">
+    <br />
+    <label>Signature: </label>&nbsp;<input id="signature" type="text" value=" ******** borrower signature here ******* " />
+    <br />
+  </div>
+  <h2>融資者署名/Borrower Signature(for lender to rapid lend)</h2>
+  <div class="card">
+    <br />
+    <label>Signature: </label>&nbsp;<input id="signature2" type="text" value=" ******** borrower signature here ******* " />
+    <br />
+  </div>
+</body>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.4.0/dist/web3.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/nedb/1.8.0/nedb.min.js"></script>
+<script type="text/javascript" src="./dependencies/adam-abi.js"></script>
+<script type="text/javascript" src="./dependencies/nftps-abi.js"></script>
+<script type="text/javascript" src="./dependencies/gyen-abi.js"></script>
+<script type="text/javascript">
+
+  function strip0x(v){
+    return v.replace(/^0x/, "");
+  }
+
+  function prepend0x(v) {
+    return v.replace(/^(0x)?/, "0x");
+  }
+
+  function bytes32FromNum(data,web3) {
+    const re = prepend0x(strip0x(web3.utils.numberToHex(data)).toLowerCase().padStart(64, "0"));
+    //console.log(re);
+    return re;
+  }
+
+  function bytes32FromHex(data,web3) {
+    let re;
+    console.log(data);
+    data.substring(0, 2) == "0x" ? re = prepend0x(strip0x(data).toLowerCase().padStart(64, "0")) :
+    re = bytes32FromNum(data,web3);
+    console.log(re);
+    return re;
+  }
+
+  const createBorrowBySigMessage = (_nftCollateralId, _borrowerNonce, _nftCollateralContract, _borrower, _chainId, web3) => {
+    return `${web3.utils.keccak256(`0x${[
+      bytes32FromHex(_nftCollateralId, web3),
+      bytes32FromHex(_borrowerNonce, web3),
+      _nftCollateralContract,
+      _borrower,
+      bytes32FromNum(_chainId,web3)
+    ].map(x => x.replace(/0x/, '')).join('')}`)}`;
+  };
+
+  const createBorrowBySigMessage2 = (
+      _nftCollateralId, 
+      _borrowerNonce, 
+      _loanPrincipalAmount,
+      _maximumRepaymentAmount,
+      _loanDuration,
+      _nftCollateralContract, 
+      _borrower, 
+      _loanERC20Denomination,
+      _chainId, 
+      web3
+  ) => {
+
+    return `${web3.utils.keccak256(`0x${[
+      bytes32FromHex(_nftCollateralId, web3),
+      bytes32FromHex(_borrowerNonce, web3),
+      bytes32FromHex(_loanPrincipalAmount, web3),
+      bytes32FromHex(_maximumRepaymentAmount, web3),
+      bytes32FromHex(_loanDuration, web3),
+      _nftCollateralContract,
+      _borrower,
+      _loanERC20Denomination,
+      bytes32FromNum(_chainId,web3)
+    ].map(x => x.replace(/0x/, '')).join('')}`)}`;
+
+  };
+
+
+  window.addEventListener('load', (event) => {
+    let web3;
+    const web3Warning = document.getElementById('web3-warning');
+    const myAddress = document.getElementById('my-address');
+    //const myEns = document.getElementById('my-ens');
+    const nftaddress = document.getElementById('nft-address');
+    const nfttokenid = document.getElementById('nft-tokenid');
+    const sign = document.getElementById('sign');
+    const sign2 = document.getElementById('sign2');
+    const cancelsign = document.getElementById('cancel-sign');
+    const signature = document.getElementById('signature');
+    const signature2 = document.getElementById('signature2');
+    const approvenft = document.getElementById('approve-nft');
+    const borrowern = document.getElementById('borrower-n');
+    borrowern.value = Date.now().toString();
+    const dt = document.getElementById('dt');
+    const chainId = document.getElementById('chainId');
+    const toaddress = document.getElementById('to-address');
+    const signinfo = document.getElementById('sign-info');
+    const signinfo2 = document.getElementById('sign-info2');
+
+    const we = document.getElementById('w-e');
+    const law = document.getElementById('l-a-w');
+    const ra = document.getElementById('r-a');
+    const ld = document.getElementById('l-d');
+
+    if (typeof window.ethereum === 'undefined') {
+      console.error('Client does not have an active Web3 provider or the example app is not being run from an HTTP server.');
+      console.log('Go here to install MetaMask: https://metamask.io/');
+      alert(
+        'You need a Web3 provider to run this page. ' + 
+        'Go here to install MetaMask:\n\n' +
+        'https://metamask.io/'
+      );
+      web3Warning.classList.remove('hidden');
+    } else {
+      main();
+    }
+
+    async function main() {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); // enable ethereum
+      web3 = new Web3(window.ethereum);
+      const net = +window.ethereum.chainId;
+
+      //db
+      //const filenamet = path.join(__dirname, 'data/example.nedb')
+      const filenamet = 'maintest1';
+      var db = new Nedb({ filename: filenamet, autoload: true });
+
+      // This app only works with rinkeby
+      if (net !== 4) {
+        alert('Please select the Rinkeby network.');
+      }
+
+      const myAccount = accounts[0];
+      myAddress.innerText = myAccount;
+
+      signinfo.innerText = "sign(hash(NFTトークンID, borrowerNonce, NFTアドレス, 融資者アドレス, chainId))";
+      signinfo2.innerText = "sign(hash(NFTトークンID, borrowerNonce, 融資金額, 最大返済金額, 融資期間, NFTアドレス, 融資者アドレス, 融資ERC20アドレス, chainId))";
+      //nftps
+      const nftpsAddress = "0xdaa1273c61a4e952b00be0d61b00a79a9d67c789";
+      //const nftpsAddress = "0x34b971f99b18fc2544847e3f61f376f632662434";
+      const nftpsAbi = window.nftpsAbi;
+      const nftps = new web3.eth.Contract(nftpsAbi, nftpsAddress);
+      let borrowersign = "";
+      let borrowersign2 = "";
+      
+
+      sign.onclick = async () => {
+        const _nftCollateralId = nfttokenid.value;
+        const _borrowerNonce = borrowern.value;
+        const _nftCollateralContract = nftaddress.value.substring(0,2) == "0x" ? nftaddress.value : await web3.eth.ens.getAddress(nftaddress.value);
+        const _borrower = myAccount;
+        const _chainId = net;
+
+        console.log("start to get message hash");
+        const msgParams = createBorrowBySigMessage(_nftCollateralId, _borrowerNonce, _nftCollateralContract, _borrower, _chainId, web3);
+        console.log(`the sign message is ${msgParams}`);
+
+        window.ethereum.sendAsync({
+          method: 'personal_sign',
+          params: [ myAccount, msgParams ],
+          from: myAccount
+        }, async (err, result) => {
+          if (err) {
+            console.error('ERROR', err);
+            alert(err);
+            return;
+          } else if (result.error) {
+            console.error('ERROR', result.error.message);
+            alert(result.error.message);
+            return;
+          }
+          const sig = result.result;
+          signature.value = sig;
+
+          const borrower = myAccount;
+          const borrowernonce = _borrowerNonce;
+          borrowersign = sig;
+          const nftaddress = _nftCollateralContract;
+          const nfttokenid = _nftCollateralId;
+          const loanERC20Denomination = we.value.substring(0,2) == "0x" ? we.value : await web3.eth.ens.getAddress(we.value);
+          const loanPrincipalAmount = law.value;
+          const maximumRepaymentAmount = ra.value;
+          const loanDuration = ld.value;
+          const nt = new Date().toLocaleString();
+
+          // db
+          const fr = await db.find({ borrowersign });
+          console.log(`wait result is ${fr}`);
+
+          console.log(borrowersign2);
+          if(borrowersign2 == ""){
+            console.log("------input ------");
+            db.insert({ nt,borrower, borrowernonce,borrowersign,borrowersign2,nftaddress,nfttokenid,loanERC20Denomination,loanPrincipalAmount,maximumRepaymentAmount,loanDuration,offers:[]}, function (err, newDocs) {
+              if (err) {
+                console.log(err);
+                return;
+              }
+            });            
+          } else {
+            db.update({ borrowersign2 }, { $set: { borrowersign } }, { multi: true }, function (err, numReplaced) {
+              console.log("edit -> replaced", replaced);
+            });
+          }
+
+        });
+      };
+
+
+      sign2.onclick = async () => {
+        const _nftCollateralId = nfttokenid.value;
+        const _borrowerNonce = borrowern.value;
+        const _nftCollateralContract = nftaddress.value.substring(0,2) == "0x" ? nftaddress.value : await web3.eth.ens.getAddress(nftaddress.value);
+        const _borrower = myAccount;
+        const _chainId = net;
+        const _loanERC20Denomination = we.value.substring(0,2) == "0x" ? we.value : await web3.eth.ens.getAddress(we.value);
+        const _loanDuration = ld.value;
+        const gyenAbi = window.gyenAbi;
+        const gyen = new web3.eth.Contract(gyenAbi, _loanERC20Denomination);
+        const decimals = await gyen.methods.decimals().call();
+        console.log(`====== ${decimals}=========`);
+        //const _loanPrincipalAmount =  law.value + "000000";
+        //const _maximumRepaymentAmount = ra.value + "000000";
+        const _loanPrincipalAmount = parseFloat(law.value) * Math.pow(10,parseInt(decimals));
+        console.log(`====== ${_loanPrincipalAmount}=========`);
+        const _maximumRepaymentAmount = parseFloat(ra.value) * Math.pow(10,parseInt(decimals));
+        console.log(`====== ${_maximumRepaymentAmount}=========`);
+
+        console.log("start to get message hash2");
+        const msgParams = createBorrowBySigMessage2(
+          _nftCollateralId, 
+          _borrowerNonce, 
+          _loanPrincipalAmount.toString(),
+          _maximumRepaymentAmount.toString(),
+          _loanDuration,
+          _nftCollateralContract, 
+          _borrower, 
+          _loanERC20Denomination,
+          _chainId, 
+          web3
+        );
+
+        console.log(`the sign message2 is ${msgParams}`);
+
+        window.ethereum.sendAsync({
+          method: 'personal_sign',
+          params: [ myAccount, msgParams ],
+          from: myAccount
+        }, async (err, result) => {
+          if (err) {
+            console.error('ERROR', err);
+            alert(err);
+            return;
+          } else if (result.error) {
+            console.error('ERROR', result.error.message);
+            alert(result.error.message);
+            return;
+          }
+
+          const sig = result.result;
+          signature2.value = sig;
+
+          const borrower = myAccount;
+          const borrowernonce = _borrowerNonce;
+          borrowersign2 = sig;
+          const nftaddress = _nftCollateralContract;
+          const nfttokenid = _nftCollateralId;
+          const loanERC20Denomination = we.value.substring(0,2) == "0x" ? we.value : await web3.eth.ens.getAddress(we.value);
+          const loanPrincipalAmount = law.value;
+          const maximumRepaymentAmount = ra.value;
+          const loanDuration = ld.value;
+          const nt = new Date().toLocaleString();
+
+          // db
+          const fr = await db.find({ borrowersign2 });
+          console.log(`wait result2 is ${fr}`);
+          
+          console.log(`borrowersign iborrowersign is ${borrowersign}`);
+          if(borrowersign == ""){
+            db.insert({ nt,borrower, borrowernonce,borrowersign,borrowersign2,nftaddress,nfttokenid,loanERC20Denomination,loanPrincipalAmount,maximumRepaymentAmount,loanDuration,offers:[]}, function (err, newDocs) {
+              if (err) {
+                console.log(err);
+                return;
+              }
+            });            
+          } else {
+            db.update({ borrowersign }, { $set: { borrowersign2 } }, { multi: true }, function (err, numReplaced) {
+              console.log("edit -> replaced", numReplaced);
+            });
+          }
+
+        });
+      };
+      
+      approvenft.onclick = async () => {
+
+        const toAddress = toaddress.value.substring(0,2) == "0x" ? toaddress.value : await web3.eth.ens.getAddress(toaddress.value);
+        console.log(toAddress);
+        const tokenId = nfttokenid.value;
+
+        //adam
+        //const adamAddress = "0x32046b81bb628a626b6543b3c532f5e7fa8a5446";
+        const adamAddress = nftaddress.value.substring(0,2) == "0x" ? nftaddress.value : await web3.eth.ens.getAddress(nftaddress.value);
+        const adamAbi = window.adamAbi;
+        const adam = new web3.eth.Contract(adamAbi, adamAddress);
+
+        approveTx = await adam.methods.approve(toAddress,tokenId).send({
+          from: myAccount,
+          gasLimit: web3.utils.toHex(1000000),
+          gasPrice: web3.utils.toHex(25000000000),
+        });
+
+        
+        console.log(`Approve sent: ${approveTx.transactionHash}`);
+
+      };
+
+      cancelsign.onclick = async () => {
+        const _nonce = borrowern.value;
+        tx = await nftps.methods.cancelLoanCommitmentBeforeLoanHasBegun(_nonce).send({
+          from: myAccount,
+          //gasLimit: web3.utils.toHex(1000000),
+          //gasPrice: web3.utils.toHex(25000000000),
+        });
+        console.log(`Approve sent: ${tx.transactionHash}`);
+      };      
+    }
+  });
+</script>
+
+</html>

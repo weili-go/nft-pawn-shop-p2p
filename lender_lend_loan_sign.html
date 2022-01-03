@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="./dependencies/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lender lend loan sign</title>
+</head>
+<body>
+  <h1>出資者はローンを出せるために、NFT Pawn Shop(NFT質屋)にトークンの移転の権利を許可する必要がある。</h1>
+  <h2>NFT Pawn Shop(NFT質屋)にERC20トークンの移転の権利を許可する</h2>
+  <div id="web3-warning" class="hidden warning">
+    Make sure the example app is being served with an HTTP server. <br />
+    Please install MetaMask: <a href="https://metamask.io/">https://metamask.io/</a>
+  </div>
+  <div class="card">
+    <label>今のアカウント: </label>&nbsp;<span id="my-address"></span>
+    <br />
+    <br />
+    <label>出資するERC20コントラクトアドレス: </label>&nbsp;<input id="erc20-address" type="text" value="0xbbb6df9b9e5e8f38831981d4b9c784406c7cfd31" />
+    <br />
+    <br />
+    <input id="get-erc20-info" type="submit" value=" ERC20情報取得" />
+    <br />
+    <br />
+    <label>ERC20トークン情報: </label>&nbsp;<span id="erc-info"></span>
+    <br />
+    <br />
+    <label>移転の許可先のアドレス: </label>&nbsp;<input id="erc20-to-address" type="text" value="0xdaa1273c61a4e952b00be0d61b00a79a9d67c789" />
+    <br />
+    <label>移転の許可金額: </label>&nbsp;<input id="erc20-amount" type="text" value="10000" />
+    <br />
+    <input id="approve-erc20" type="submit" value="移転許可" />
+  </div>
+  <h2>融資者にローンの出しのオファーへの出資者署名</h2>
+  <div class="card">
+    <label>融資者の担保品のNFTのアドレス: </label>&nbsp;<span id="nft-address"></span>
+    <br />
+    <br />
+    <label>融資者の担保品のNFTのトークンID: </label>&nbsp;<span id="nft-tokenid"></span>
+    <br />
+    <br />
+    <label>貸付金額: </label>&nbsp;<input id="l-amount" type="text" value="1000" />
+    <br />
+    <br />
+    <label>最大返却金額: </label>&nbsp;<input id="m-r-a" type="text" value="1500" />
+    <br />
+    <br />
+    <label>出資期間: </label>&nbsp;<input id="l-d" type="text" value="864000" />
+    <br />
+    <br />
+    <label>Lender Nonce(avoid replay attack): </label>&nbsp;<input id="l-n" type="text" disabled=true value="" />
+    <br />
+    <br />
+    <label>利息率(返済額 = 貸付金額分 * 利息率 * 利用期間 / 出資期間): </label>&nbsp;<input id="l-f-b-p" type="text" value="** 0.1 **" />
+    <br />
+    <br />
+    <label>　 ※ </label>&nbsp;<span id="nothing"></span>
+    <label>How to sign: </label>&nbsp;<span id="sign-info"></span>
+    <input id="sign" type="submit" value="オファーの署名を出す" />
+    <label> </label>&nbsp;<span id="cansign1"></span>
+    <br />
+    <input id="cancel-sign" type="submit" value="署名をキャンセルする" />
+  </div>
+  <h2>出資者のローンの出しのオファー署名</h2>
+  <div class="card">
+    <br />
+
+    <label>Signature: </label>&nbsp;<input id="signature" type="text" value=" ******** lender signature here ******* "/>
+    <br />
+  </div>
+  <h2>出資者は融資者の希望の通りに即時に出資する</h2>
+  <div class="card">
+    <label>※ 注意：　出資者はガスを出します。 </label>&nbsp;<span id="canquick"></span>
+    <br />
+    <br />
+    <input id="giveloan" type="submit" value="融資者の希望の通りに即時に出資する" />
+    <br />
+  </div>
+</body>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.4.0/dist/web3.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/nedb/1.8.0/nedb.min.js"></script>
+<script type="text/javascript" src="./dependencies/gyen-abi.js"></script>
+<script type="text/javascript" src="./dependencies/nftps-abi.js"></script>
+<script type="text/javascript" src="./dependencies/adam-abi.js"></script>
+<script type="text/javascript">
+
+  function strip0x(v){
+    return v.replace(/^0x/, "");
+  }
+
+  function prepend0x(v) {
+    return v.replace(/^(0x)?/, "0x");
+  }
+  
+  function bytes32FromNum(data,web3) {
+    const re = prepend0x(strip0x(web3.utils.numberToHex(data)).toLowerCase().padStart(64, "0"));
+    //console.log(re);
+    return re;
+  }
+
+  function bytes32FromHex1(data) {
+    const re = prepend0x(strip0x(data).toLowerCase().padStart(64, "0"));
+    return re;
+  }
+
+  function bytes32FromHex(data,web3) {
+    let re;
+    console.log(data);
+    data.substring(0, 2) == "0x" ? re = prepend0x(strip0x(data).toLowerCase().padStart(64, "0")) :
+    re = bytes32FromNum(data,web3);
+
+    console.log(re);
+    return re;
+  }
+
+  const createBorrowBySigMessage = (_nftCollateralId, _borrowerNonce, _nftCollateralContract, _borrower, _chainId, web3) => {
+    return `${web3.utils.keccak256(`0x${[
+      bytes32FromHex(_nftCollateralId, web3),
+      bytes32FromHex(_borrowerNonce, web3),
+      _nftCollateralContract,
+      _borrower,
+      bytes32FromNum(_chainId)
+    ].map(x => x.replace(/0x/, '')).join('')}`)}`;
+  };
+
+  const createLendBySigMessage = (
+          _loanPrincipalAmount, 
+          _maximumRepaymentAmount, 
+          _nftCollateralId, 
+          _loanDuration, 
+          _loanInterestRateForDurationInBasisPoints, 
+          _adminFeeInBasisPoints,
+          _lenderNonce,
+          _nftCollateralContract,
+          _loanERC20Denomination,
+          _lender,
+          _interestIsProRated,
+          _chainId,
+          web3
+  ) => {
+    return `${web3.utils.keccak256(`0x${[
+      bytes32FromNum(_loanPrincipalAmount, web3),
+      bytes32FromNum(_maximumRepaymentAmount, web3),
+      bytes32FromHex(_nftCollateralId, web3),
+      bytes32FromNum(_loanDuration, web3),
+      bytes32FromNum(_loanInterestRateForDurationInBasisPoints, web3),
+      bytes32FromNum(_adminFeeInBasisPoints, web3),
+      bytes32FromHex(_lenderNonce,web3),
+      _nftCollateralContract,
+      _loanERC20Denomination,
+      _lender,
+      _interestIsProRated,
+      bytes32FromNum(_chainId, web3),
+    ].map(x => x.replace(/0x/, '')).join('')}`)}`;
+  }
+
+  window.addEventListener('load', (event) => {
+    let web3;
+    const web3Warning = document.getElementById('web3-warning');
+    const myAddress = document.getElementById('my-address');
+    const nftaddress = document.getElementById('nft-address');
+    const nfttokenid = document.getElementById('nft-tokenid');
+    const sign = document.getElementById('sign');
+    const cancelsign = document.getElementById('cancel-sign');
+    const signature = document.getElementById('signature');
+    const lamount = document.getElementById('l-amount');
+    const mra = document.getElementById('m-r-a');
+    const ln = document.getElementById('l-n');
+    ln.value = Date.now().toString();
+    const ld = document.getElementById('l-d');
+    const chainId = document.getElementById('chainId');
+
+    const erc20address = document.getElementById('erc20-address');
+    const ercamount = document.getElementById('erc20-amount');
+    const erc20toaddress = document.getElementById('erc20-to-address');
+    const approveerc20 = document.getElementById('approve-erc20');
+    const accept = document.getElementById('accept');
+    const lfbp = document.getElementById('l-f-b-p');
+
+    const erc20info = document.getElementById('erc-info');
+    const geterc20info = document.getElementById('get-erc20-info');
+    const giveloan = document.getElementById('giveloan');
+
+    const signinfo = document.getElementById('sign-info');
+    const canquick = document.getElementById('canquick');
+    const cansign1 = document.getElementById('cansign1');
+    signinfo.innerText = "sign(hash(貸付金額, 最大返済金額, 担保NFTのトークンID, 貸付ローン期間, 質屋手数料、lenderNonce, 担保NFTのアドレス, 貸付のERC20アドレス, 出資者アドレス, chain Id ))";
+
+    if (typeof window.ethereum === 'undefined') {
+      console.error('Client does not have an active Web3 provider or the example app is not being run from an HTTP server.');
+      console.log('Go here to install MetaMask: https://metamask.io/');
+      alert(
+        'You need a Web3 provider to run this page. ' + 
+        'Go here to install MetaMask:\n\n' +
+        'https://metamask.io/'
+      );
+      web3Warning.classList.remove('hidden');
+    } else {
+      main();
+    }
+
+    async function main() {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); // enable ethereum
+      web3 = new Web3(window.ethereum);
+      const net = +window.ethereum.chainId;
+
+      // This app only works with rinkeby
+      if (net !== 4) {
+        alert('Please select the Rinkeby network.');
+      }
+
+      const filenamet = 'maintest1';
+      var db = new Nedb({ filename: filenamet, autoload: true });
+
+      // get parameters
+      console.log(window.location.href);
+      var url = window.location.search;
+      console.log("-----");
+      console.log(url);
+      var theRequest = new Object();
+      var nedbdocid;
+      if (url.indexOf('?') != -1) {
+        var str = url.substr(1);
+        var strs = str.split('&');
+        for (var i = 0; i < strs.length; i++) {
+            theRequest[strs[i].split('=')[0]] = strs[i].split('=')[1];
+        }
+        console.log(theRequest);
+
+        nedbdocid = theRequest.id;
+        console.log(`nedb id is ${nedbdocid}`);
+
+      }
+
+      let result;
+      db.find({_id: nedbdocid}, function (err, docs) {
+        console.log("get db as below:-------");
+        console.log(docs[0]);
+
+        result = docs[0];
+
+        nftaddress.innerText = result.nftaddress;
+        nfttokenid.innerText = result.nfttokenid;
+        erc20address.value = result.loanERC20Denomination;
+        lamount.value = result.loanPrincipalAmount;
+        mra.value = result.maximumRepaymentAmount;
+        ld.value = result.loanDuration;
+
+        if(result.borrowersign2 == ""){
+          canquick.innerText = "融資者は即融資の署名をしないので、あなたの即出資を受けません。";
+          giveloan.disabled = true;
+        }
+        if(result.borrowersign == ""){
+          cansign1.innerText = "融資者はオファーを受けません。";
+          sign.disabled = true;
+        }
+      });
+
+
+      
+      //gyen
+      //const gyenAddress = "0xbbb6df9b9e5e8f38831981d4b9c784406c7cfd31";
+      const gyenAbi = window.gyenAbi;
+      //const gyen = new web3.eth.Contract(gyenAbi, gyenAddress);
+      const myAccount = accounts[0];
+      myAddress.innerText = myAccount;
+      //signinfo.innerText = "sign(hash(NFT-tokenId, borrowerNonce, NFT-contractAddress, Loan-borrower, chainId))";
+
+      //nftps
+      const nftpsAddress = "0xdaa1273c61a4e952b00be0d61b00a79a9d67c789";
+      //const nftpsAddress = "0x34b971f99b18fc2544847e3f61f376f632662434";
+      const nftpsAbi = window.nftpsAbi;
+      const nftps = new web3.eth.Contract(nftpsAbi, nftpsAddress);
+      //const _loanInterestRateForDurationInBasisPoints = 0x0;
+      const _adminFeeInBasisPoints = await nftps.methods.adminFeeInBasisPoints().call();
+      console.log(`adminFeeInBasisPoints is ${_adminFeeInBasisPoints}`);
+      
+
+      giveloan.onclick = async () => {
+        const _nftCollateralId = result.nfttokenid;
+        console.log(`the NFT token id is ${_nftCollateralId}`);
+        //const _borrowerNonce = borrowern.value;
+        const _borrower = result.borrower;
+        console.log(`the owner of the NFT is ${_borrower}`);
+
+        const _nftCollateralContract = result.nftaddress.substring(0,2) == "0x" ? result.nftaddress : await web3.eth.ens.getAddress(result.nftaddress);
+        console.log(_nftCollateralContract);
+
+        const _chainId = net;
+        //const _lenderNonce = ln.value;
+        const _loanERC20Denomination = result.loanERC20Denomination.substring(0,2) == "0x" ? result.loanERC20Denomination : await web3.eth.ens.getAddress(result.loanERC20Denomination);
+        console.log(_loanERC20Denomination);
+
+
+        const _lender = myAccount;
+        const _interestIsProRated = "0x01";
+        //const _loanInterestRateForDurationInBasisPoints = parseInt(parseFloat(lfbp.value) * 10000).toString();
+        //console.log(`_loanInterestRateForDurationInBasisPoints is ${_loanInterestRateForDurationInBasisPoints}`);
+        
+        const gyen = new web3.eth.Contract(gyenAbi, _loanERC20Denomination);
+        const decimals = await gyen.methods.decimals().call();
+        console.log(`decimals is ${decimals}`);
+        //const _loanPrincipalAmount = result.loanPrincipalAmount + "000000";
+        //const _maximumRepaymentAmount = result.maximumRepaymentAmount + "000000";
+        const _loanPrincipalAmount = parseFloat(lamount.value) * Math.pow(10,parseInt(decimals));
+        console.log(`====== ${_loanPrincipalAmount}=========`);
+        const _maximumRepaymentAmount = parseFloat(mra.value) * Math.pow(10,parseInt(decimals));
+        console.log(`====== ${_maximumRepaymentAmount}=========`);
+
+        const _loanDuration = result.loanDuration;
+        const _borrowern = result.borrowernonce.toString();
+        //const _borrowern = bytes32FromHex(result.borrowernonce,web3);
+        console.log(`------------------------- ${_borrowern}`);
+        
+        const _borrowerSignature = result.borrowersign2;
+
+        console.log(result);
+
+        tx = await nftps.methods.giveLoan(
+          _loanPrincipalAmount.toString(),
+          _maximumRepaymentAmount.toString(),
+          _nftCollateralId,
+          _loanDuration,
+          _adminFeeInBasisPoints,
+          _borrowern,
+          _nftCollateralContract,
+          _loanERC20Denomination,
+          _borrower,
+          _borrowerSignature
+          )
+          .send({
+          from: myAccount,
+          //gasLimit: web3.utils.toHex(1000000),
+          //gasPrice: web3.utils.toHex(25000000000),
+        });
+
+        
+        console.log(`tx sent: ${tx.transactionHash}`);
+
+      };
+
+      sign.onclick = async () => {
+        const _nftCollateralId = result.nfttokenid;
+        console.log(`the NFT token id is ${_nftCollateralId}`);
+        //const _borrowerNonce = borrowern.value;
+        //const adamAddress = "0x32046b81bb628a626b6543b3c532f5e7fa8a5446";
+
+        const _nftCollateralContract = result.nftaddress.substring(0,2) == "0x" ? result.nftaddress : await web3.eth.ens.getAddress(result.nftaddress);
+        const adamAbi = window.adamAbi;
+        const adam = new web3.eth.Contract(adamAbi, _nftCollateralContract);
+
+        const _owner = await adam.methods.ownerOf(_nftCollateralId).call();
+        console.log(`the owner of the NFT is ${_owner}`);
+
+        const _chainId = net;
+        const _lenderNonce = ln.value;
+        const _loanERC20Denomination = erc20address.value.substring(0,2) == "0x" ? erc20address.value : await web3.eth.ens.getAddress(erc20address.value);
+        const _lender = myAccount;
+        const _interestIsProRated = "0x01";
+        const _loanInterestRateForDurationInBasisPoints = parseInt(parseFloat(lfbp.value) * 10000).toString();
+        console.log(`_loanInterestRateForDurationInBasisPoints is ${_loanInterestRateForDurationInBasisPoints}`);
+        //const _loanPrincipalAmount = lamount.value + "000000";
+        //const _maximumRepaymentAmount = mra.value + "000000";
+        const _loanDuration = ld.value;
+
+        const gyen = new web3.eth.Contract(gyenAbi, _loanERC20Denomination);
+        const decimals = await gyen.methods.decimals().call();
+        const _loanPrincipalAmount = parseFloat(lamount.value) * Math.pow(10,parseInt(decimals));
+        console.log(`====== ${_loanPrincipalAmount}=========`);
+        const _maximumRepaymentAmount = parseFloat(mra.value) * Math.pow(10,parseInt(decimals));
+        console.log(`====== ${_maximumRepaymentAmount}=========`);
+
+        console.log("start to get message hash");
+        const msgParams = createLendBySigMessage(
+          _loanPrincipalAmount.toString(), 
+          _maximumRepaymentAmount.toString(), 
+          _nftCollateralId, 
+          _loanDuration, 
+          _loanInterestRateForDurationInBasisPoints, 
+          _adminFeeInBasisPoints,
+          _lenderNonce,
+          _nftCollateralContract,
+          _loanERC20Denomination,
+          _lender,
+          _interestIsProRated,
+          _chainId,
+          web3
+        );
+
+        console.log(`the sign message is ${msgParams}`);
+
+        window.ethereum.sendAsync({
+          method: 'personal_sign',
+          params: [ myAccount, msgParams ],
+          from: myAccount
+        }, async (err, result) => {
+          if (err) {
+            console.error('ERROR', err);
+            alert(err);
+            return;
+          } else if (result.error) {
+            console.error('ERROR', result.error.message);
+            alert(result.error.message);
+            return;
+          }
+
+          const sig = result.result;
+          signature.value = sig;
+
+          const lenderaddress = myAccount;
+          const lendernonce = _lenderNonce;
+          const lendersign = sig;
+          const lenderInterestRate = lfbp.value;
+
+          const lenderloanERC20Denomination = _loanERC20Denomination;
+          const lenderloanPrincipalAmount = lamount.value;
+          const lendermaximumRepaymentAmount = mra.value;
+          const lenderloanDuration = ld.value;
+          const nt = new Date().toLocaleString();
+
+          /*
+          // db
+          db.insert({ nftaddress,nfttokenid,lenderaddress,lendernonce,lendersign,loanInterestRateForDurationInBasisPoints,loanERC20Denomination, loanPrincipalAmount,maximumRepaymentAmount,loanDuration}, function (err) {
+            if (err) {
+              console.log(err);
+              return;
+            }
+          });
+          */
+
+          db.update({ _id: nedbdocid }, { $push: { offers: {nt,lenderaddress,lendernonce,lendersign,lenderInterestRate,lenderloanERC20Denomination,lenderloanPrincipalAmount,lendermaximumRepaymentAmount,lenderloanDuration}} }, {}, function (err) {
+            if (err) {
+              console.log(err);
+              return;
+            }
+
+            db.find({}, function (err, docs) {
+              console.log("---------");
+              console.log(docs);
+            });
+          });
+
+
+        });
+      };
+
+      geterc20info.onclick = async () => {
+
+        const _loanERC20Denomination = erc20address.value.substring(0,2) == "0x" ? erc20address.value : await web3.eth.ens.getAddress(erc20address.value);
+        console.log(_loanERC20Denomination);
+        const _gyen = new web3.eth.Contract(gyenAbi, _loanERC20Denomination);
+        const name = await _gyen.methods.name().call();
+        const symbol = await _gyen.methods.symbol().call();
+        const v = await _gyen.methods.balanceOf(myAccount).call();
+        const decimals = await _gyen.methods.decimals().call();
+        const vt = parseInt(v) / Math.pow(10,parseInt(decimals));
+        erc20info.innerText = `Name: ${name}, SYMBOL: ${symbol}, あなたの残高： ${vt}`;
+
+      };
+
+      approveerc20.onclick = async () => {
+        const _loanERC20Denomination = erc20address.value.substring(0,2) == "0x" ? erc20address.value : await web3.eth.ens.getAddress(erc20address.value);
+        console.log(_loanERC20Denomination);
+        const gyen = new web3.eth.Contract(gyenAbi, _loanERC20Denomination);
+
+        const _erc20toaddress = erc20toaddress.value.substring(0,2) == "0x" ? erc20toaddress.value : await web3.eth.ens.getAddress(erc20toaddress.value);
+        const decimals = await gyen.methods.decimals().call();
+        const _ercamounttmp = parseFloat(ercamount.value) * Math.pow(10,parseInt(decimals));
+        //const _ercamount = ercamount.value + "000000";
+        const _ercamount = _ercamounttmp.toString();
+        approveTx = await gyen.methods.approve(_erc20toaddress,_ercamount).send({
+          from: myAccount,
+          gasLimit: web3.utils.toHex(1000000),
+          gasPrice: web3.utils.toHex(25000000000),
+        });
+
+        
+        console.log(`Approve sent: ${approveTx.transactionHash}`);
+
+      };
+
+      cancelsign.onclick = async () => {
+        const _nonce = ln.value;
+        tx = await nftps.methods.cancelLoanCommitmentBeforeLoanHasBegun(_nonce).send({
+          from: myAccount,
+          //gasLimit: web3.utils.toHex(1000000),
+          //gasPrice: web3.utils.toHex(25000000000),
+        });
+        console.log(`Approve sent: ${tx.transactionHash}`);
+      };
+    }
+  });
+</script>
+
+</html>

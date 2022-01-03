@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="./dependencies/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>オファーリスト</title>
+</head>
+<body>
+  <h1 id="title">オファーリスト: </h1>
+  <div id="offerlist"></div>
+</body>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/nedb/1.8.0/nedb.min.js"></script>
+<script type="text/javascript" src="./dependencies/handlebars.min.js"></script>
+<script type="text/javascript">
+  window.addEventListener('load', (event) => {
+    const offerListContainer = document.getElementById('offerlist');
+    const offerListTemplate = Handlebars.compile(`
+      {{#each this}}
+      <div class="card">
+        <h4> 📢 オファーがあり: {{ nt }}</h4>
+        <label>出資者アドレス: </label>&nbsp;<span>{{ lenderaddress }}</span>
+        <br />
+        <label>出資のERC20トークンアドレス: </label>&nbsp;<span>{{ lenderloanERC20Denomination }}</span>
+        <br />
+        <label>出資のERC20金額: </label>&nbsp;<span>{{ lenderloanPrincipalAmount }}</span>
+        <br />
+        <label>要求の最大返済額: </label>&nbsp;<span>{{ lendermaximumRepaymentAmount }}</span>
+        <br />
+        <label>要求の利益率: </label>&nbsp;<span>{{ lenderInterestRate }}</span>
+        <br />
+        <label>貸付期間: </label>&nbsp;<span>{{ lenderloanDuration }}</span>
+        <br />
+        <br />
+        <a class="button" href="/nft-pawn-shop/borrower_accept_offer.html?id={{ id }}&offerid={{offerid}}">該当オファーを受け入れる</a>
+      </div>
+    {{/each}}
+    `);
+
+    // get parameters
+    console.log(window.location.href);
+    var url = window.location.search;
+    console.log("-----");
+    console.log(url);
+    var theRequest = new Object();
+    var nedbdocid;
+    if (url.indexOf('?') != -1) {
+      var str = url.substr(1);
+      var strs = str.split('&');
+      for (var i = 0; i < strs.length; i++) {
+          theRequest[strs[i].split('=')[0]] = strs[i].split('=')[1];
+      }
+      console.log(theRequest);
+    }
+
+    //db
+    console.log('-------db');
+    const filenamet = 'maintest1';
+
+    var db = new Nedb({ filename: filenamet, autoload: true });
+
+    db.find({_id: theRequest.id}, function (err, docs) {
+      console.log(docs[0]);
+
+      let offerList = docs[0].offers || [];
+      let formattedofferList = [];
+      let cnt = 0;
+      offerList.forEach((offer) => {
+        formattedofferList.push({
+          lenderaddress: offer.lenderaddress,
+          lendernonce: offer.lendernonce,
+          lenderInterestRate: offer.lenderInterestRate,
+          lenderloanERC20Denomination: offer.lenderloanERC20Denomination,
+          lenderloanPrincipalAmount: offer.lenderloanPrincipalAmount,
+          lendermaximumRepaymentAmount: offer.lendermaximumRepaymentAmount,
+          lenderloanDuration: offer.lenderloanDuration,
+          id: docs[0]._id,
+          offerid: cnt++,
+          nt: offer.nt,
+        });
+      });
+
+      
+      const titleElement = document.getElementById('title');
+      const nfta = `\nNFT Address: ${docs[0].nftaddress}\n`;
+      const nftid = `NFT TokenId: ${docs[0].nfttokenid}\n`;
+      titleElement.innerText = titleElement.innerText + nfta + nftid;
+
+      console.log('@@@@@@@@@@@@@');
+      console.log(formattedofferList);
+
+      formattedofferList.sort(
+        function(a, b){
+          return b.nt > a.nt ? 1: -1;
+        }
+      );
+
+      console.log(formattedofferList);
+      offerListContainer.innerHTML = offerListTemplate(formattedofferList);
+    });
+
+    offerListContainer.innerHTML = '<p style="text-align:center;">Fetching Offers list...</p>';
+  });
+</script>
+
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="./dependencies/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>質入れのNFTのリスト</title>
+</head>
+<body>
+  <h1 id="title">質入れのNFTのリスト </h1>
+  <div id="nftlist"></div>
+</body>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/nedb/1.8.0/nedb.min.js"></script>
+<script type="text/javascript" src="./dependencies/handlebars.min.js"></script>
+<script type="text/javascript">
+  window.addEventListener('load', (event) => {
+    const nftListContainer = document.getElementById('nftlist');
+    const nftListTemplate = Handlebars.compile(`
+      {{#each this}}
+      <div class="card">
+        <h4> 📢 質入れがあり: {{ nt }}</h4>
+        <label>融資者アドレス: </label>&nbsp;<span>{{ borrower }}</span>
+        <br />
+        <label>担保するNFTのアドレス: </label>&nbsp;<span>{{ nftaddress }}</span>
+        <br />
+        <label>担保するNFTのトークンID: </label>&nbsp;<span>{{ nfttokenid }}</span>
+        <br />
+        <label>希望の借入ERC20トークンアドレス: </label>&nbsp;<span>{{ loanERC20Denomination }}</span>
+        <br />
+        <label>希望の借入ERC20金額: </label>&nbsp;<span>{{ loanPrincipalAmount }}</span>
+        <br />
+        <label>希望の最大返済金額: </label>&nbsp;<span>{{ maximumRepaymentAmount }}</span>
+        <br />
+        <label>希望の借入期間: </label>&nbsp;<span>{{ loanDuration }}</span>
+        <br />
+        <br />
+        <a class="button" {{nosign}} href="/nft-pawn-shop/lender_lend_loan_sign.html?id={{ id }}">融資のオファーを出す</a>
+        <br />
+        <a class="button" {{nosign2}} href="/nft-pawn-shop/lender_lend_loan_sign.html?id={{ id }}">即時に出資する</a>
+        <br />
+        <a class="button" href="/nft-pawn-shop/get_offers.html?id={{id}}">該当NFTの質入れへのオファー一覧</a>
+      </div>
+    {{/each}}
+    `);
+
+    //db
+    console.log('-------db');
+    const filenamet = 'maintest1';
+
+    var db = new Nedb({ filename: filenamet, autoload: true });
+
+    db.find({}).sort({ nt: -1 }).exec(function (err, docs) {
+      console.log(docs[0]);
+
+      let nftlist = docs || [];
+      let formattednftlist = [];
+      nftlist.forEach((nft) => {
+
+        formattednftlist.push({
+          borrower: nft.borrower,
+          borrowernonce: nft.borrowernonce,
+          nftaddress: nft.nftaddress,
+          nfttokenid: nft.nfttokenid,
+          loanERC20Denomination: nft.loanERC20Denomination,
+          loanPrincipalAmount: nft.loanPrincipalAmount,
+          maximumRepaymentAmount: nft.maximumRepaymentAmount,
+          loanDuration: nft.loanDuration,
+          id: nft._id,
+          nosign: nft.borrowersign == "" ? "disabled":"",
+          nosign2: nft.borrowersign2 == "" ? "disabled":"",
+          nt: nft.nt,
+        });
+      });
+
+      console.log(formattednftlist);
+      nftListContainer.innerHTML = nftListTemplate(formattednftlist);
+    });
+/*
+    db.find({}, function (err, docs) {
+      console.log(docs[0]);
+
+      let nftlist = docs || [];
+      let formattednftlist = [];
+      nftlist.forEach((nft) => {
+
+        formattednftlist.push({
+          borrower: nft.borrower,
+          borrowernonce: nft.borrowernonce,
+          nftaddress: nft.nftaddress,
+          nfttokenid: nft.nfttokenid,
+          loanERC20Denomination: nft.loanERC20Denomination,
+          loanPrincipalAmount: nft.loanPrincipalAmount,
+          maximumRepaymentAmount: nft.maximumRepaymentAmount,
+          loanDuration: nft.loanDuration,
+          id: nft._id,
+          nosign: nft.borrowersign == "" ? "disabled":"",
+          nosign2: nft.borrowersign2 == "" ? "disabled":"",
+          nt: nft.nt,
+        });
+      });
+
+      console.log(formattednftlist);
+      nftListContainer.innerHTML = nftListTemplate(formattednftlist);
+    });
+*/
+    nftListContainer.innerHTML = '<p style="text-align:center;">Fetching NFTs list...</p>';
+  });
+</script>
+
+</html>

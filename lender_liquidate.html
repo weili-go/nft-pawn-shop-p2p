@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="./dependencies/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lender liquidate overdue loan</title>
+</head>
+<body>
+  <h1>出資者は返済期限切りのローンを清算する</h1>
+  <h2>貸付のローンの情報</h2>
+  <div id="web3-warning" class="hidden warning">
+    Make sure the example app is being served with an HTTP server. <br />
+    Please install MetaMask: <a href="https://metamask.io/">https://metamask.io/</a>
+  </div>
+  <div class="card">
+    <label>今のアカウント: </label>&nbsp;<span id="my-address"></span>
+    <br />
+    <br />
+    <label>ローンID: </label>&nbsp;<input id="l-i" type="text" value="0" />
+    <br />
+    <br />
+    <input id="get-loan" type="submit" value="貸付のローン情報を取得する" />
+    <br />
+    <br />
+    <label>融資者アドレス: </label>&nbsp;<span id="loan-b-a"></span>
+    <br />
+    <br />
+    <label>融資のERC20コントラクトアドレス: </label>&nbsp;<span id="loan-e-d"></span>
+    <br />
+    <br />
+    <label>出資金額: </label>&nbsp;<span id="my-loan-o-m"></span>
+    <br />
+    <br />
+    <label>最大返済金額: </label>&nbsp;<span id="my-loan-r-a"></span>
+    <br />
+    <br />
+    <label>融資するNFTの担保品のアドレス: </label>&nbsp;<span id="nft-address"></span>
+    <br />
+    <br />
+    <label>融資するNFTのトークンID: </label>&nbsp;<span id="nft-id"></span>
+    <br />
+    <br />
+    <label>ローン開始時間: </label>&nbsp;<span id="loan-s-t"></span>
+    <br />
+    <br />
+    <label>ローンの期間（秒）: </label>&nbsp;<span id="loan-d"></span>
+    <br />
+    <br />
+    <label>利息率: </label>&nbsp;<span id="loan-l-r-d-p"></span>
+    <br />
+    <br />
+    <label>質屋の手数料（利息の割引）: </label>&nbsp;<span id="loan-a-p"></span>
+    <br />
+    <br />
+    <label>最大返済額での返済必須か: </label>&nbsp;<span id="loan-i-i"></span>
+    <br />
+    <br />
+    <input id="payback-early" type="submit" value="利息収益" />
+    <label>融資者の返済の金額: </label>&nbsp;<span id="my-early"></span>
+    <br />
+    <br />
+    <label>トータル利息収益: </label>&nbsp;<span id="t-fee"></span>
+    <br />
+    <br />
+    <label>出資者への元金分: </label>&nbsp;<span id="b-m"></span>
+    <br />
+    <br />
+    <label>出資者への利息分: </label>&nbsp;<span id="b-fee"></span>
+    <br />
+    <br />
+    <label>質屋への利息分: </label>&nbsp;<span id="p-fee"></span>
+    <br />
+    <br />
+  </div>
+  <h2>返済期限切りのローンを清算する</h2>
+  <div class="card">
+    <input id="get-liquidate-nft" type="submit" value="貸付のローンの情報" />
+    <br />
+    <label>ローン情報: </label>&nbsp;<span id="li-i"></span>
+    <br />
+    <br />
+    <br />
+    <br />
+    <input id="liquidate-nft" type="submit" value="清算する" />
+  </div>
+</body>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.4.0/dist/web3.min.js"></script>
+<script type="text/javascript" src="./dependencies/gyen-abi.js"></script>
+<script type="text/javascript" src="./dependencies/nftps-abi.js"></script>
+<script type="text/javascript" src="./dependencies/adam-abi.js"></script>
+<script type="text/javascript">
+
+  function strip0x(v){
+    return v.replace(/^0x/, "");
+  }
+
+  function prepend0x(v) {
+    return v.replace(/^(0x)?/, "0x");
+  }
+  
+  function bytes32FromNum(data,web3) {
+    const re = prepend0x(strip0x(web3.utils.numberToHex(data)).toLowerCase().padStart(64, "0"));
+    //console.log(re);
+    return re;
+  }
+
+  function bytes32FromHex1(data) {
+    const re = prepend0x(strip0x(data).toLowerCase().padStart(64, "0"));
+    return re;
+  }
+
+  function bytes32FromHex(data,web3) {
+    let re;
+    console.log(data);
+    data.substring(0, 2) == "0x" ? re = prepend0x(strip0x(data).toLowerCase().padStart(64, "0")) :
+    re = bytes32FromNum(data,web3);
+
+    console.log(re);
+    return re;
+  }
+
+  const createBorrowBySigMessage = (_nftCollateralId, _borrowerNonce, _nftCollateralContract, _borrower, _chainId, web3) => {
+    return `${web3.utils.keccak256(`0x${[
+      bytes32FromHex(_nftCollateralId, web3),
+      bytes32FromHex(_borrowerNonce, web3),
+      _nftCollateralContract,
+      _borrower,
+      bytes32FromNum(_chainId)
+    ].map(x => x.replace(/0x/, '')).join('')}`)}`;
+  };
+
+  window.addEventListener('load', (event) => {
+    let web3;
+    const web3Warning = document.getElementById('web3-warning');
+    const myAddress = document.getElementById('my-address');
+    const pFee = document.getElementById('p-fee');
+    const tFee = document.getElementById('t-fee');
+    const bFee = document.getElementById('b-fee');
+    const myEarly = document.getElementById('my-early');
+    const chainId = document.getElementById('chainId');
+
+    const getloan = document.getElementById('get-loan');
+    const loanid = document.getElementById('l-i');
+    const payback = document.getElementById('pay-back-loan');
+    const myerc20amount = document.getElementById('my-erc-amount');
+
+    const myLoanom = document.getElementById('my-loan-o-m');
+    const myLoanpm = document.getElementById('my-loan-r-a');
+    const nfta = document.getElementById('nft-address');
+    const nftid = document.getElementById('nft-id');
+    const loanst = document.getElementById('loan-s-t');
+    const loand = document.getElementById('loan-d');
+    const loanInterest = document.getElementById('loan-l-r-d-p');
+    const adminfeep = document.getElementById('loan-a-p');
+    const loanerc20a = document.getElementById('loan-e-d');
+    const loanborrower = document.getElementById('loan-b-a');
+    const isProRated = document.getElementById('loan-i-i');
+
+    const paybackearly = document.getElementById('payback-early');
+    const li = document.getElementById('li-i');
+    const liquidate = document.getElementById('liquidate-nft');
+    const bm = document.getElementById('b-m');
+    const getliquidate = document.getElementById('get-liquidate-nft');
+
+    if (typeof window.ethereum === 'undefined') {
+      console.error('Client does not have an active Web3 provider or the example app is not being run from an HTTP server.');
+      console.log('Go here to install MetaMask: https://metamask.io/');
+      alert(
+        'You need a Web3 provider to run this page. ' + 
+        'Go here to install MetaMask:\n\n' +
+        'https://metamask.io/'
+      );
+      web3Warning.classList.remove('hidden');
+    } else {
+      main();
+    }
+
+    async function main() {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); // enable ethereum
+      web3 = new Web3(window.ethereum);
+      const net = +window.ethereum.chainId;
+      const myAccount = accounts[0];
+      myAddress.innerText = myAccount;
+      
+      // This app only works with rinkeby
+      if (net !== 4) {
+        alert('Please select the Rinkeby network.');
+      }
+
+      //nftps
+      const nftpsAddress = "0xdaa1273c61a4e952b00be0d61b00a79a9d67c789";
+      //const nftpsAddress = "0x34b971f99b18fc2544847e3f61f376f632662434";
+      const nftpsAbi = window.nftpsAbi;
+      const nftps = new web3.eth.Contract(nftpsAbi, nftpsAddress);
+      //const _loanInterestRateForDurationInBasisPoints = 0x0;
+      const _adminFeeInBasisPoints = await nftps.methods.adminFeeInBasisPoints().call();
+      console.log(`adminFeeInBasisPoints is ${_adminFeeInBasisPoints}`);
+      
+
+      const gyenAbi = window.gyenAbi;
+
+      //adam
+      const adamAddress = "0x32046b81bb628a626b6543b3c532f5e7fa8a5446";
+      const adamAbi = window.adamAbi;
+      const adam = new web3.eth.Contract(adamAbi, adamAddress);
+
+      getloan.onclick = async () => {
+
+        const lid = loanid.value;
+        const loan = await nftps.methods.loanIdToLoan(lid).call();
+        
+        loanerc20a.innerText = loan.loanERC20Denomination;
+        const gyen = new web3.eth.Contract(gyenAbi, loan.loanERC20Denomination);
+        const decimals = await gyen.methods.decimals().call();
+
+        myLoanom.innerText = parseInt(loan.loanPrincipalAmount) / Math.pow(10,parseInt(decimals));
+        myLoanpm.innerText = parseInt(loan.maximumRepaymentAmount) / Math.pow(10,parseInt(decimals));
+
+        //myLoanom.innerText = parseInt(loan.loanPrincipalAmount) / 1000000;
+        //myLoanpm.innerText = parseInt(loan.maximumRepaymentAmount) / 1000000;
+
+        nfta.innerText = loan.nftCollateralContract;
+        nftid.innerText = web3.utils.numberToHex(loan.nftCollateralId);
+        const t = new Date(parseInt(loan.loanStartTime) * 1000);
+        loanst.innerText = t.toLocaleString();
+        loand.innerText = `${loan.loanDuration} (単位：秒)`;
+        loanInterest.innerText = parseInt(loan.loanInterestRateForDurationInBasisPoints)/10000;
+        adminfeep.innerText = parseInt(loan.loanAdminFeeInBasisPoints)/10000;
+        
+        loanborrower.innerText = loan.borrower;
+        isProRated.innerText = loan.interestIsProRated ? "いいえ" : "はい";
+      };
+
+      paybackearly.onclick = async () => {
+
+        const gyen = new web3.eth.Contract(gyenAbi, loanerc20a.innerText);
+        const decimals = await gyen.methods.decimals().call();
+        const decInt = Math.pow(10,parseInt(decimals));
+        
+        const lid = loanid.value;
+        const loanamount = await nftps.methods.getPayoffAmount(lid).call();
+        myEarly.innerText = parseFloat(loanamount) / decInt;
+        
+        const loan = await nftps.methods.loanIdToLoan(lid).call();
+        bm.innerText = parseInt(loan.loanPrincipalAmount) / decInt;
+        const pri = loan.loanPrincipalAmount;
+        
+        const profit = parseFloat(loanamount) - parseFloat(pri);
+
+        const tfeetmp = (profit / decInt).toFixed(parseInt(decimals));
+        tFee.innerText = tfeetmp;
+        const bfeetmp = (parseFloat((1 - parseFloat(_adminFeeInBasisPoints)/10000) * profit / decInt)).toFixed(parseInt(decimals));
+        bFee.innerText = bfeetmp;
+
+        pFee.innerText = (tfeetmp - bfeetmp).toFixed(parseInt(decimals));
+      };
+
+      getliquidate.onclick = async () => {
+
+        const lid = loanid.value;
+        const loan = await nftps.methods.loanIdToLoan(lid).call();
+      
+        const due = parseInt(loan.loanStartTime) + parseInt(loan.loanDuration);
+        console.log(due);
+        const st = new Date(due * 1000);
+        const duetime = st.toLocaleString();
+
+        const now = Date.now();
+        const nowcomp = parseInt(now / 1000);
+        console.log(now);
+        console.log(nowcomp);
+        const nt = new Date(now);
+        const nowtime = nt.toLocaleString();
+
+        const str = `Now time is ${nowtime}, loan due time is ${duetime}. \n`;
+        nowcomp >= due ? 
+        li.innerText = str + "So, you can start liquidate." :
+        li.innerText = str + "You can not liquidate the nft." ;
+      };    
+
+      liquidate.onclick = async () => {
+
+        const lid = loanid.value;
+        tx = await nftps.methods.liquidateOverdueLoan(lid).send({
+          from: myAccount,
+          //gasLimit: web3.utils.toHex(1000000),
+          //gasPrice: web3.utils.toHex(25000000000),
+        });
+
+        console.log(tx);
+      }
+    }
+  });
+</script>
+
+</html>
